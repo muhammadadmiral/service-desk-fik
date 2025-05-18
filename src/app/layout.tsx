@@ -2,6 +2,7 @@
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { ToastProvider } from "@/providers/toast-providder";
+import { NotificationProvider } from "@/providers/notification-provider";
 import "./globals.css";
 import { Metadata } from "next";
 
@@ -20,8 +21,10 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <QueryProvider>
-            <ToastProvider />
-            {children}
+            <NotificationProvider>
+              <ToastProvider />
+              {children}
+            </NotificationProvider>
           </QueryProvider>
         </AuthProvider>
       </body>

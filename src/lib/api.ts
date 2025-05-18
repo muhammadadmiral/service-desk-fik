@@ -1,6 +1,5 @@
 // src/lib/api.ts
 import axios from "axios";
-import { getSession } from "next-auth/react";
 
 // Base API configuration
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://service-desk-fik-backend-production.up.railway.app";
@@ -14,29 +13,38 @@ export const api = axios.create({
 });
 
 // Add auth token to requests
-api.interceptors.request.use(async (config) => {
-  const session = await getSession();
-  
-  if (session?.access_token) {
-    config.headers.Authorization = `Bearer ${session.access_token}`;
+api.interceptors.request.use(
+  (config) => {
+    // Only add token if we're in a browser context
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem("auth_token");
+      
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  
-  return config;
-});
+);
 
 // Handle response errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-
-    // Handle 401 Unauthorized (token expired)
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+    // Check if it's a 401 error and we're in a browser context
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      // Clear local storage and redirect to login
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
       
-      // Redirect to login if token invalid/expired
-      window.location.href = "/login?error=session_expired";
-      return Promise.reject(error);
+      // Only redirect if not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = `/login?error=session_expired&callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+      }
     }
 
     return Promise.reject(error);
@@ -174,16 +182,18 @@ export const apiClient = {
     createTemplate: (data: any) => api.post("/tickets/templates", data),
   },
 
-  // Notifications
   notifications: {
     getAll: (unread?: boolean) => 
       api.get("/notifications", { params: { unread } }),
     
-    markAsRead: (id: number) => api.put(`/notifications/${id}/read`),
+    markAsRead: (id: number) => 
+      api.put(`/notifications/${id}/read`),
     
-    markAllAsRead: () => api.put("/notifications/read-all"),
+    markAllAsRead: () => 
+      api.put("/notifications/read-all"),
     
-    delete: (id: number) => api.delete(`/notifications/${id}`),
+    delete: (id: number) => 
+      api.delete(`/notifications/${id}`),
   },
   
   // File management
@@ -191,4 +201,5 @@ export const apiClient = {
     deleteAttachment: (attachmentId: number) => 
       api.delete(`/tickets/attachments/${attachmentId}`),
   },
+  
 };
